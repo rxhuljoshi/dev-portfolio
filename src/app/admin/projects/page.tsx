@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, Trash2, Edit, Star, Save, X } from "lucide-react";
+import { Reorder } from "framer-motion";
+import { Plus, Trash2, Edit, Star, Save, X, Eye, EyeOff, GripVertical } from "lucide-react";
 
 interface Project {
     id: string;
@@ -13,6 +14,7 @@ interface Project {
     tags: string[];
     colors: string[];
     is_featured: boolean;
+    is_visible: boolean;
     order_index: number;
 }
 
@@ -30,13 +32,10 @@ export default function ProjectsAdmin() {
         tags: [] as string[],
         colors: ["#3b82f6", "#8b5cf6"],
         is_featured: false,
+        is_visible: true,
         order_index: 0
     });
     const [tagInput, setTagInput] = useState("");
-
-    useEffect(() => {
-        fetchProjects();
-    }, []);
 
     const fetchProjects = async () => {
         const supabase = createClient();
@@ -47,6 +46,10 @@ export default function ProjectsAdmin() {
         setProjects(data || []);
         setLoading(false);
     };
+
+    useEffect(() => {
+        fetchProjects();
+    }, []);
 
     const handleAddProject = async () => {
         const supabase = createClient();
@@ -69,6 +72,7 @@ export default function ProjectsAdmin() {
             tags: [],
             colors: ["#3b82f6", "#8b5cf6"],
             is_featured: false,
+            is_visible: true,
             order_index: 0
         });
         fetchProjects();
@@ -96,6 +100,7 @@ export default function ProjectsAdmin() {
                 tags: editForm.tags,
                 colors: editForm.colors,
                 is_featured: editForm.is_featured,
+                is_visible: editForm.is_visible,
                 order_index: editForm.order_index
             })
             .eq("id", editForm.id);
@@ -112,6 +117,43 @@ export default function ProjectsAdmin() {
             .update({ is_featured: !project.is_featured })
             .eq("id", project.id);
         fetchProjects();
+    };
+
+    const toggleVisibility = async (project: Project) => {
+        const supabase = createClient();
+        const newValue = !project.is_visible;
+
+        // Optimistic update
+        setProjects(prev => prev.map(p => p.id === project.id ? { ...p, is_visible: newValue } : p));
+
+        const { error } = await supabase
+            .from("projects")
+            .update({ is_visible: newValue })
+            .eq("id", project.id);
+
+        if (error) {
+            console.error("Error updating visibility:", error);
+            alert(`Failed to update visibility: ${error.message}`);
+            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, is_visible: !newValue } : p));
+        }
+    };
+
+    const handleReorder = async (newOrder: Project[]) => {
+        // Update local state immediately
+        setProjects(newOrder);
+
+        // Update order in Supabase
+        const supabase = createClient();
+
+        // Update each item's order_index
+        const updates = newOrder.map((project, index) => ({
+            id: project.id,
+            order_index: index,
+        }));
+
+        await Promise.all(updates.map(update =>
+            supabase.from("projects").update({ order_index: update.order_index }).eq("id", update.id)
+        ));
     };
 
     const addTag = () => {
@@ -235,86 +277,178 @@ export default function ProjectsAdmin() {
                 </div>
             )}
 
-            {/* Projects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Projects List */}
+            <Reorder.Group axis="y" values={projects} onReorder={handleReorder} className="space-y-4">
                 {projects.map((project) => (
-                    <div key={project.id} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                        {editingId === project.id ? (
-                            <div className="space-y-3">
-                                <input
-                                    type="text"
-                                    value={editForm?.title || ""}
-                                    onChange={(e) => setEditForm(prev => prev ? { ...prev, title: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white"
-                                />
-                                <textarea
-                                    value={editForm?.description || ""}
-                                    onChange={(e) => setEditForm(prev => prev ? { ...prev, description: e.target.value } : null)}
-                                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white"
-                                    rows={2}
-                                />
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={handleUpdateProject}
-                                        className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded"
-                                    >
-                                        <Save className="w-4 h-4" /> Save
-                                    </button>
-                                    <button
-                                        onClick={() => { setEditingId(null); setEditForm(null); }}
-                                        className="flex items-center gap-1 px-3 py-1 bg-white/10 text-white rounded"
-                                    >
-                                        <X className="w-4 h-4" /> Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="flex items-start justify-between mb-2">
-                                    <h3 className="text-white font-semibold">{project.title}</h3>
-                                    <div className="flex items-center gap-1">
+                    <Reorder.Item key={project.id} value={project} id={project.id} className="list-none">
+                        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                            {editingId === project.id ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/50" onPointerDown={(e) => e.stopPropagation()}>
+                                            <GripVertical className="w-5 h-5" />
+                                        </div>
+                                        <div className="text-white/50 text-sm">Editing Project</div>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={editForm?.title || ""}
+                                        onChange={(e) => setEditForm(prev => prev ? { ...prev, title: e.target.value } : null)}
+                                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white"
+                                        placeholder="Title"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input
+                                            type="text"
+                                            value={editForm?.github_url || ""}
+                                            onChange={(e) => setEditForm(prev => prev ? { ...prev, github_url: e.target.value } : null)}
+                                            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+                                            placeholder="GitHub URL"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={editForm?.live_url || ""}
+                                            onChange={(e) => setEditForm(prev => prev ? { ...prev, live_url: e.target.value } : null)}
+                                            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm"
+                                            placeholder="Live URL"
+                                        />
+                                    </div>
+                                    <textarea
+                                        value={editForm?.description || ""}
+                                        onChange={(e) => setEditForm(prev => prev ? { ...prev, description: e.target.value } : null)}
+                                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white"
+                                        rows={2}
+                                        placeholder="Description"
+                                    />
+
+                                    {/* Tag Editing */}
+                                    <div className="bg-white/5 p-2 rounded-lg">
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {editForm?.tags.map((tag, i) => (
+                                                <span key={i} className="px-2 py-0.5 bg-white/10 text-white/70 rounded-full text-xs flex items-center gap-1">
+                                                    {tag}
+                                                    <button
+                                                        onClick={() => setEditForm(prev => prev ? { ...prev, tags: prev.tags.filter((_, idx) => idx !== i) } : null)}
+                                                        className="text-white/50 hover:text-white"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Add tag"
+                                                className="flex-1 px-2 py-1 bg-white/10 border border-white/20 rounded text-white text-xs"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        const val = (e.target as HTMLInputElement).value.trim();
+                                                        if (val && editForm) {
+                                                            setEditForm({ ...editForm, tags: [...editForm.tags, val] });
+                                                            (e.target as HTMLInputElement).value = "";
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                                    const val = input.value.trim();
+                                                    if (val && editForm) {
+                                                        setEditForm({ ...editForm, tags: [...editForm.tags, val] });
+                                                        input.value = "";
+                                                    }
+                                                }}
+                                                className="px-2 py-1 bg-white/10 text-white rounded text-xs"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-2">
                                         <button
-                                            onClick={() => toggleFeatured(project)}
-                                            className={`p-1.5 rounded ${project.is_featured ? 'text-yellow-400' : 'text-white/30'}`}
+                                            onClick={handleUpdateProject}
+                                            className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded"
                                         >
-                                            <Star className="w-4 h-4" fill={project.is_featured ? "currentColor" : "none"} />
+                                            <Save className="w-4 h-4" /> Save
                                         </button>
                                         <button
-                                            onClick={() => { setEditingId(project.id); setEditForm(project); }}
-                                            className="p-1.5 text-white/50 hover:bg-white/10 rounded"
+                                            onClick={() => { setEditingId(null); setEditForm(null); }}
+                                            className="flex items-center gap-1 px-3 py-1 bg-white/10 text-white rounded"
                                         >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteProject(project.id)}
-                                            className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
+                                            <X className="w-4 h-4" /> Cancel
                                         </button>
                                     </div>
                                 </div>
-                                <p className="text-white/60 text-sm mb-3 line-clamp-2">{project.description}</p>
-                                <div className="flex flex-wrap gap-1">
-                                    {project.tags.slice(0, 4).map((tag, i) => (
-                                        <span key={i} className="px-2 py-0.5 bg-white/10 text-white/60 rounded text-xs">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                    {project.tags.length > 4 && (
-                                        <span className="px-2 py-0.5 text-white/40 text-xs">
-                                            +{project.tags.length - 4} more
-                                        </span>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-start gap-4 mb-2">
+                                        <div className="cursor-grab active:cursor-grabbing mt-1 text-white/30 hover:text-white/50" onPointerDown={(e) => e.stopPropagation()}>
+                                            <GripVertical className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-start justify-between">
+                                                <h3 className="text-white font-semibold">{project.title}</h3>
+                                                <div className="flex items-center gap-1">
+                                                    {!project.is_visible && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/20 mr-1">
+                                                            HIDDEN
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => toggleVisibility(project)}
+                                                        className={`p-1.5 rounded ${project.is_visible ? 'text-white/30 hover:text-white' : 'text-red-400 hover:bg-red-500/20'}`}
+                                                        title={project.is_visible ? "Hide from website" : "Show on website"}
+                                                    >
+                                                        {project.is_visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleFeatured(project)}
+                                                        className={`p-1.5 rounded ${project.is_featured ? 'text-yellow-400' : 'text-white/30'}`}
+                                                    >
+                                                        <Star className="w-4 h-4" fill={project.is_featured ? "currentColor" : "none"} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setEditingId(project.id); setEditForm(project); }}
+                                                        className="p-1.5 text-white/50 hover:bg-white/10 rounded"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteProject(project.id)}
+                                                        className="p-1.5 text-red-400 hover:bg-red-500/20 rounded"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <p className="text-white/60 text-sm mb-3 line-clamp-2">{project.description}</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {project.tags.slice(0, 4).map((tag, i) => (
+                                                    <span key={i} className="px-2 py-0.5 bg-white/10 text-white/60 rounded text-xs">
+                                                        {tag}
+                                                    </span>
+                                                ))}
+                                                {project.tags.length > 4 && (
+                                                    <span className="px-2 py-0.5 text-white/40 text-xs">
+                                                        +{project.tags.length - 4} more
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </Reorder.Item>
                 ))}
-            </div>
+            </Reorder.Group>
 
             {projects.length === 0 && !showAddForm && (
                 <div className="text-center py-12 text-white/50">
-                    No projects yet. Add your first project!
+                    Coming Soon...
                 </div>
             )}
         </div>

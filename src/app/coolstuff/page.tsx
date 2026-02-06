@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import DecryptedText from "@/components/ui/decrypted-text";
 import { motion } from "framer-motion";
 import { renderCanvas } from "@/components/ui/canvas";
@@ -10,32 +10,39 @@ import { ArrowLeft, Home, User, Briefcase, Code, Phone } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Footer } from "@/components/footer";
+import { createClient } from "@/lib/supabase/client";
 
-interface PhotoPrompt {
-    image: string;
+interface CoolStuffItem {
+    id: string;
+    image_url: string;
     prompt: string;
+    order_index: number;
 }
-
-const photoPrompts: PhotoPrompt[] = [
-    {
-        image: "/Rahul 1.png",
-        prompt: "Create a stylized comic-style portrait of a young Indian man with curly black hair, wearing a black hoodie. The art style should be vibrant and modern with bold outlines, similar to pop art or graphic novel illustrations. The background should feature colorful abstract shapes and patterns."
-    },
-    {
-        image: "/Rahul 2.png",
-        prompt: "Generate a comic-style illustration of a young Indian man in a dynamic pose, wearing casual streetwear. Use bold colors, strong shadows, and graphic novel aesthetics. Add urban graffiti-style elements in the background with bright yellows and contrasting colors."
-    },
-    {
-        image: "/Rahul 3.png",
-        prompt: "Create an animated-style portrait of a young Indian man with curly hair in a confident stance. The style should be reminiscent of modern animation or comic books with clean lines, vibrant colors, and expressive details. Include stylized background elements."
-    },
-];
 
 export default function CoolStuffPage() {
     const router = useRouter();
+    const [items, setItems] = useState<CoolStuffItem[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         renderCanvas();
+
+        const fetchCoolStuff = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .from("cool_stuff")
+                .select("*")
+                .order("order_index", { ascending: true });
+
+            if (error) {
+                console.error("Error fetching cool stuff:", error);
+            } else {
+                setItems(data || []);
+            }
+            setLoading(false);
+        };
+
+        fetchCoolStuff();
     }, []);
 
     const navigateToSection = (sectionId: string) => {
@@ -92,47 +99,51 @@ export default function CoolStuffPage() {
                         Want to create similar AI-generated portraits? Here are the prompts I used with Gemini to create these images. Feel free to use them as inspiration!
                     </p>
 
-                    <div className="space-y-16">
-                        {photoPrompts.map((item, index) => (
-                            <motion.div
-                                key={index}
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.5, delay: index * 0.1 }}
-                                className="grid md:grid-cols-2 gap-8 md:gap-12 items-center"
-                            >
-                                {/* Image */}
-                                <div className="flex justify-center md:justify-end">
-                                    <img
-                                        src={item.image}
-                                        alt={`AI Portrait ${index + 1}`}
-                                        className="w-64 h-64 md:w-80 md:h-80 object-cover rounded-2xl shadow-2xl"
-                                    />
-                                </div>
+                    {loading ? (
+                        <div className="text-center text-white/50 py-12">Loading content...</div>
+                    ) : (
+                        <div className="space-y-16">
+                            {items.map((item, index) => (
+                                <motion.div
+                                    key={item.id}
+                                    initial={{ opacity: 0, y: 30 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                                    className="grid md:grid-cols-2 gap-8 md:gap-12 items-center"
+                                >
+                                    {/* Image */}
+                                    <div className="flex justify-center md:justify-end">
+                                        <img
+                                            src={item.image_url}
+                                            alt={`AI Portrait ${index + 1}`}
+                                            className="w-64 h-64 md:w-80 md:h-80 object-cover rounded-2xl shadow-2xl"
+                                        />
+                                    </div>
 
-                                {/* Prompt */}
-                                <div className="flex flex-col justify-center">
-                                    <span className="text-green-400 text-sm font-semibold mb-2">
-                                        Prompt #{index + 1}
-                                    </span>
-                                    <p className="text-white/90 text-base leading-relaxed bg-white/5 p-6 rounded-xl border border-white/10">
-                                        {item.prompt}
-                                    </p>
-                                    <button
-                                        onClick={() => navigator.clipboard.writeText(item.prompt)}
-                                        className="mt-4 text-green-400 text-sm hover:text-green-300 transition-colors self-start flex items-center gap-2"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                                        </svg>
-                                        Copy prompt
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                                    {/* Prompt */}
+                                    <div className="flex flex-col justify-center">
+                                        <span className="text-green-400 text-sm font-semibold mb-2">
+                                            Prompt #{index + 1}
+                                        </span>
+                                        <p className="text-white/90 text-base leading-relaxed bg-white/5 p-6 rounded-xl border border-white/10">
+                                            {item.prompt}
+                                        </p>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(item.prompt)}
+                                            className="mt-4 text-green-400 text-sm hover:text-green-300 transition-colors self-start flex items-center gap-2"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                                            </svg>
+                                            Copy prompt
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
             <Footer />

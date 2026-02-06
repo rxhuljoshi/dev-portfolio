@@ -1,15 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Github, ExternalLink } from "lucide-react";
 import DecryptedText from "@/components/ui/decrypted-text";
 import { LiquidButton } from "@/components/ui/button";
-import { featuredProjects, Project } from "@/data/projects";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
+interface Project {
+    id: string;
+    title: string;
+    description: string;
+    github_url: string;
+    live_url?: string;
+    tags: string[];
+    colors: string[];
+    is_featured: boolean;
+    order_index: number;
+}
 
 function ProjectCard({ project }: { project: Project }) {
     return (
         <a
-            href={project.githubUrl}
+            href={project.github_url}
             target="_blank"
             rel="noopener noreferrer"
             className="group block"
@@ -25,7 +38,7 @@ function ProjectCard({ project }: { project: Project }) {
                             <ExternalLink className="w-5 h-5 text-white/50 group-hover:text-green-400 transition-colors" />
                         </div>
                     </div>
-                    <p className="text-white/60 text-sm leading-relaxed">
+                    <p className="text-white/60 text-sm leading-relaxed line-clamp-3">
                         {project.description}
                     </p>
                 </div>
@@ -45,6 +58,30 @@ function ProjectCard({ project }: { project: Project }) {
 }
 
 export function Projects() {
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProjects = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .from("projects")
+                .select("*")
+                .eq("is_featured", true)
+                .neq("is_visible", false) // Filter out hidden projects
+                .order("order_index", { ascending: true });
+
+            if (error) {
+                console.error("Error fetching projects:", error);
+            } else {
+                setProjects(data || []);
+            }
+            setLoading(false);
+        };
+
+        fetchProjects();
+    }, []);
+
     return (
         <section id="projects" className="pt-16 pb-32 px-6 md:px-12 lg:px-20 w-full">
             <div className="max-w-6xl mx-auto">
@@ -61,13 +98,17 @@ export function Projects() {
                     />
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {featuredProjects.map((project) => (
-                        <ProjectCard key={project.title} project={project} />
-                    ))}
-                </div>
+                {loading ? (
+                    <div className="text-center text-white/50 py-12">Loading projects...</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {projects.map((project) => (
+                            <ProjectCard key={project.id} project={project} />
+                        ))}
+                    </div>
+                )}
 
-                <div className="flex justify-center mt-12">
+                <div className="flex justify-center mt-12 mb-16">
                     <Link href="/projects">
                         <LiquidButton>
                             More Projects

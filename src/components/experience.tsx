@@ -1,10 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import DecryptedText from "@/components/ui/decrypted-text";
-import { experiences } from "@/data/experience";
-import type { Experience as ExperienceType, Role } from "@/data/experience";
 import { Calendar, FileText } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+
+interface Role {
+    title: string;
+    period: string;
+    description: string;
+    skills: string[];
+    order_index: number;
+}
+
+interface ExperienceType {
+    id: string;
+    company: string;
+    location: string;
+    order_index: number;
+    roles: Role[];
+}
 
 function RoleCard({ role }: { role: Role }) {
     return (
@@ -42,7 +58,9 @@ function RoleCard({ role }: { role: Role }) {
 }
 
 function ExperienceCard({ experience, index }: { experience: ExperienceType; index: number }) {
-    const hasMultipleRoles = experience.roles.length > 1;
+    // Sort roles by order_index just in case
+    const sortedRoles = [...experience.roles].sort((a, b) => a.order_index - b.order_index);
+    const hasMultipleRoles = sortedRoles.length > 1;
 
     return (
         <motion.div
@@ -71,7 +89,7 @@ function ExperienceCard({ experience, index }: { experience: ExperienceType; ind
 
             {/* Roles - show all roles under company if promoted */}
             <div className={hasMultipleRoles ? "border-l-2 border-green-400/30 pl-4 ml-1" : ""}>
-                {experience.roles.map((role, roleIndex) => (
+                {sortedRoles.map((role, roleIndex) => (
                     <RoleCard
                         key={roleIndex}
                         role={role}
@@ -83,6 +101,29 @@ function ExperienceCard({ experience, index }: { experience: ExperienceType; ind
 }
 
 export function Experience() {
+    const [experiences, setExperiences] = useState<ExperienceType[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchExperiences = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .from("experiences")
+                .select("*, roles(*)")
+                .neq("is_visible", false) // Filter out items where is_visible is false
+                .order("order_index", { ascending: true });
+
+            if (error) {
+                console.error("Error fetching experiences:", error);
+            } else {
+                setExperiences(data as ExperienceType[] || []);
+            }
+            setLoading(false);
+        };
+
+        fetchExperiences();
+    }, []);
+
     return (
         <section id="experience" className="pt-16 pb-32 px-6 md:px-12 lg:px-20 w-full">
             <div className="max-w-4xl mx-auto">
@@ -103,11 +144,15 @@ export function Experience() {
                     Professional experience that I have accumulated over several years.
                 </p>
 
-                <div className="relative">
-                    {experiences.map((exp, index) => (
-                        <ExperienceCard key={index} experience={exp} index={index} />
-                    ))}
-                </div>
+                {loading ? (
+                    <div className="text-center text-white/50">Loading experiences...</div>
+                ) : (
+                    <div className="relative">
+                        {experiences.map((exp, index) => (
+                            <ExperienceCard key={exp.id} experience={exp} index={index} />
+                        ))}
+                    </div>
+                )}
             </div>
         </section>
     );

@@ -1,8 +1,11 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { LiquidButton } from "@/components/ui/button";
 import DecryptedText from "@/components/ui/decrypted-text";
 import TextType from "@/components/ui/text-type";
+import { Download } from "lucide-react";
 
 // Corner bracket component for the hero box
 function CornerBracket({ position }: { position: "top-left" | "top-right" | "bottom-left" | "bottom-right" }) {
@@ -30,6 +33,16 @@ function CornerBracket({ position }: { position: "top-left" | "top-right" | "bot
 }
 
 export function Hero() {
+    const [cvUrl, setCvUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchCV = async () => {
+            const supabase = createClient();
+            const { data } = await supabase.from("content").select("value").eq("id", "resume_url").single();
+            if (data) setCvUrl(data.value);
+        };
+        fetchCV();
+    }, []);
     return (
         <section id="home" className="relative pb-32 w-full">
             <div className="animation-delay-8 animate-fadeIn pt-16 flex flex-col items-center justify-center px-4 text-center md:pt-24">
@@ -62,6 +75,15 @@ export function Hero() {
                                     </span>
                                     Available Now
                                 </LiquidButton>
+
+                                {cvUrl && (
+                                    <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="ml-4">
+                                        <LiquidButton className="flex flex-row items-center gap-2 text-white hover:text-green-400">
+                                            Download CV
+                                            <Download className="w-4 h-4" />
+                                        </LiquidButton>
+                                    </a>
+                                )}
                             </div>
                         </div>
                     </div>

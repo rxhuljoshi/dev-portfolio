@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
     Briefcase,
@@ -11,7 +11,8 @@ import {
     User,
     LogOut,
     Settings,
-    Home
+    Home,
+    FileText
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -22,8 +23,17 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     const [loading, setLoading] = useState(true);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const router = useRouter();
+    const pathname = usePathname();
+
+    // Skip auth check for login page
+    const isLoginPage = pathname === "/admin/login";
 
     useEffect(() => {
+        if (isLoginPage) {
+            setLoading(false);
+            return;
+        }
+
         const checkAuth = async () => {
             const supabase = createClient();
             const { data: { user } } = await supabase.auth.getUser();
@@ -38,13 +48,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         };
 
         checkAuth();
-    }, [router]);
+    }, [router, isLoginPage]);
 
-    const handleLogout = async () => {
-        const supabase = createClient();
-        await supabase.auth.signOut();
-        router.push("/admin/login");
-    };
+    // Render login page without layout wrapper
+    if (isLoginPage) {
+        return <>{children}</>;
+    }
 
     if (loading) {
         return (
@@ -54,12 +63,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         );
     }
 
+    const handleLogout = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        router.push("/admin/login");
+    };
+
     const navItems = [
         { href: "/admin", icon: Settings, label: "Dashboard" },
         { href: "/admin/experiences", icon: Briefcase, label: "Experiences" },
         { href: "/admin/projects", icon: FolderOpen, label: "Projects" },
         { href: "/admin/coolstuff", icon: Image, label: "Cool Stuff" },
         { href: "/admin/about", icon: User, label: "About & Skills" },
+        { href: "/admin/cv", icon: FileText, label: "CV Updates" },
     ];
 
     return (

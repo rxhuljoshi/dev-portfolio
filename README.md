@@ -41,6 +41,14 @@ A modern, responsive portfolio website built with **Next.js 15**, **Tailwind CSS
 
 4.  Open [http://localhost:3000](http://localhost:3000).
 
+## Database
+
+The `database/` folder contains the SQL schema and seed scripts for Supabase.
+
+-   `schema.sql`: Master database schema and RLS policies. Run in Supabase SQL Editor.
+-   `seed.sql`: Initial data.
+-   `generate_seed.py`: Python script to generate the seed file.
+
 ## Admin Access
 
 Access the admin panel at `/admin`. You will need to be authenticated via Supabase Auth (configured in database policies).
